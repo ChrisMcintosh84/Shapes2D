@@ -23,35 +23,6 @@ public class Main {
 
     private static final int WIDTH = 800;
     private static final int HEIGHT = 600;
-    private static int shaderId;
-
-    private static float[] vertices = {
-            // Vertex positions for a simple equilateral triangle
-            0.0f, 0.5f, 0.0f,  // Top
-            -0.5f, -0.5f, 0.0f, // Bottom left
-            0.5f, -0.5f, 0.0f  // Bottom right
-    };
-
-    private static String vertexShaderString = """
-            #version 450 core
-
-            in vec3 position;
-
-            void main() {
-                gl_Position = vec4(position, 1.0);
-            }""";
-    private static String fragmentShaderString = """
-            #version 450 core
-
-            out vec4 fragColor;
-
-            uniform vec3 color;
-
-            void main() {
-                fragColor = vec4(color, 1.0);
-            }""";
-    private static int vao;
-    private static int vbo;
 
     public static void main(String[] args) {
         if (!glfwInit()) {
@@ -79,53 +50,30 @@ public class Main {
 
         glfwSetKeyCallback(window, keyCallback);
 
-        vao = glGenVertexArrays();
-        glBindVertexArray(vao);
+        VAO vao = new VAO();
+        vao.bind();
 
-        vbo = glGenBuffers();
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
+        Triangle triangle = new Triangle();
 
-        int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertexShader, vertexShaderString);
-        glCompileShader(vertexShader);
+        VBO vbo = new VBO(triangle.getVertices());
+        vbo.bind();
 
-        int status = glGetShaderi(vertexShader, GL_COMPILE_STATUS);
-        if (status != GL_TRUE) {
-            throw new RuntimeException(glGetShaderInfoLog(vertexShader));
-        }
+        Shader vertexShader;
+        vertexShader = Shader.loadShader(GL_VERTEX_SHADER, triangle.getVertexShaderPath());
 
-        checkGLError();
+        Shader fragmentShader;
+        fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, triangle.getFragmentShaderPath());
 
-        int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragmentShader, fragmentShaderString);
-        glCompileShader(fragmentShader);
+        ShaderProgram shaderProgram = new ShaderProgram();
+        shaderProgram.attachShaders(vertexShader, fragmentShader);
+        shaderProgram.link();
+        shaderProgram.use();
 
-        status = glGetShaderi(fragmentShader, GL_COMPILE_STATUS);
-        if (status != GL_TRUE) {
-            throw new RuntimeException(glGetShaderInfoLog(fragmentShader));
-        }
-
-        checkGLError();
-
-        int shaderProgram = glCreateProgram();
-        glAttachShader(shaderProgram, vertexShader);
-        glAttachShader(shaderProgram, fragmentShader);
-        glLinkProgram(shaderProgram);
-        glUseProgram(shaderProgram);
-
-        status = glGetProgrami(shaderProgram, GL_LINK_STATUS);
-        if (status != GL_TRUE) {
-            throw new RuntimeException(glGetProgramInfoLog(shaderProgram));
-        }
-
-        checkGLError();
-
-        int posAttrib = glGetAttribLocation(shaderProgram, "position");
+        int posAttrib = glGetAttribLocation(shaderProgram.getId(), "position");
         glEnableVertexAttribArray(posAttrib);
         glVertexAttribPointer(posAttrib, 3, GL_FLOAT, false, 3 * Float.BYTES, 0);
 
-        int colourLocation = glGetUniformLocation(shaderProgram, "color");
+        int colourLocation = glGetUniformLocation(shaderProgram.getId(), "color");
         try (MemoryStack memoryStack = MemoryStack.stackPush()) {
             FloatBuffer floatBuffer = memoryStack.mallocFloat(3);
             floatBuffer.put(1.0f).put(0.0f).put(0.0f).flip();
@@ -137,25 +85,17 @@ public class Main {
             glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT);
 
-            glUseProgram(shaderProgram);
-            glBindVertexArray(vao);
+            shaderProgram.use();
+            vao.bind();
             glDrawArrays(GL_TRIANGLES, 0, 3);
 
             glfwSwapBuffers(window);
             glfwPollEvents();
         }
 
-        glBindVertexArray(0);
-        glDeleteProgram(shaderProgram);
+        vao.unBind();
+        glDeleteProgram(shaderProgram.getId());
 
         glfwTerminate();
-    }
-
-    public static void checkGLError() {
-        int error = glGetError();
-        while (error != GL_NO_ERROR) {
-            System.err.println("OpenGL error: " + error);
-            error = glGetError();
-        }
     }
 }
